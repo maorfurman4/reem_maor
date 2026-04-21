@@ -5,33 +5,70 @@ import requests
 from flask import Flask
 from threading import Thread
 
-# טעינת הסודות מ-Render
-TOKEN = os.environ.get("TELEGRAM_TOKEN")
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY_1")
-GROUP_ID = os.environ.get("GROUP_ID")
+# טעינת הסודות + ניקוי אוטומטי של רווחים נסתרים מההעתקה
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY_1", "").strip()
+GROUP_ID = os.environ.get("GROUP_ID", "").strip()
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "CTO Bot is active and running smoothly!"
+    return "CTO Bot is active, upgraded to Gemini 2.0, and listening!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 def get_gemini_feedback(text):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    if not GEMINI_KEY:
+        return "שגיאה: חסר מפתח API של ג'מיני."
+
+    # שדרוג למודל החדש והחזק ביותר הזמין כרגע
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}"
     
+    # הפרומפט המקצועי שלך בדיוק כפי שביקשת
     prompt = f"""
 You are an elite Startup Architect and CTO Advisor operating inside a developer group chat.
 Your task is to analyze raw startup ideas presented by the users and provide a structured, highly analytical, and realistic breakdown.
 
 CRITICAL RULES:
-1. NO PREAMBLE: Start directly with the analysis. Directly to the content. No preamble.
+1. NO PREAMBLE: Start directly with the analysis. Directly to the content. No preamble. Do not say "Here is the analysis" or "That's a great idea".
 2. LANGUAGE: Respond strictly in Hebrew, using precise professional and technical terminology.
-3. FORMATTING: Use Markdown.
+3. FORMATTING: Use Markdown. Use the exact structure below. If a parameter is unknown, state your best logical assumption.
+
+---
+### [כותרת קצרה הממצה את הרעיון] ###
+
+1. 🔍 **סטטוס בשוק (האם קיים כבר?):**
+   - מתחרים ישירים ועקיפים בולטים בשוק הישראלי והעולמי.
+   - יתרון יחסי (Unfair Advantage) - מה אנחנו צריכים לעשות אחרת כדי לנצח?
+
+2. 🧠 **סיבוכיות פיתוח ומורכבות (1 קל עד 10 קשה מאוד):**
+   - דירוג הסיבוכיות.
+   - הסבר טכני קצר על האתגרים המרכזיים (למשל: סנכרון זמן אמת, עבודה עם חומרה, רגולציה).
+
+3. 🎯 **קהל יעד (Target Audience):**
+   - הגדרה מדויקת של ה-Early Adopters. למי זה פותר כאב אמיתי?
+
+4. 💰 **הערכת עלויות (Bootstrap / חודשי):**
+   - הערכת עלויות שוטפות להרצת ה-MVP (שרתים ב-Render/AWS, שירותי צד שלישי, API, אוטומציות).
+
+5. 🛠️ **סביבת פיתוח מומלצת (Tech Stack):**
+   - Frontend, Backend, Database, שירותי AI ענן מומלצים לפרויקט הספציפי הזה.
+
+6. 👥 **צוות נדרש (Team Size):**
+   - אילו תפקידים הכרחיים כדי להרים MVP (למשל: 1 Fullstack, 1 איש UI/UX).
+
+7. ⏳ **משך זמן פיתוח (Time to MVP):**
+   - הערכת לו"ז ריאלית בחודשים או שבועות.
+
+8. 📋 **פירוק למשימות (Task Breakdown):**
+   - שלב 1: מחקר, אפיון ותשתיות.
+   - שלב 2: פיתוח Backend ו-API.
+   - שלב 3: פיתוח Frontend / אפליקציה.
+   - שלב 4: בדיקות, QA והשקה.
 
 ---
 הנה הרעיון שעליך לנתח:
@@ -43,29 +80,45 @@ CRITICAL RULES:
     
     try:
         res = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        # טיפול בשגיאות מהשרת של גוגל
         if res.status_code != 200:
             print(f"Gemini API Error: {res.status_code} - {res.text}")
-            return "משהו השתבש בחיבור למוח של ה-CTO... נסו שוב בעוד רגע."
-        return res.json()['candidates'][0]['content']['parts'][0]['text']
+            if res.status_code == 404:
+                 return "שגיאה 404: המודל הזה לא נתמך במפתח שלך. דבר עם המפתח שיחזיר לגרסת 1.5."
+            return f"שגיאת API מג'מיני (קוד {res.status_code})."
+
+        data = res.json()
+        
+        # חילוץ התשובה וווידוא שהיא קיימת
+        if 'candidates' in data and len(data['candidates']) > 0:
+            candidate = data['candidates'][0]
+            if 'content' in candidate and 'parts' in candidate['content']:
+                return candidate['content']['parts'][0]['text']
+            elif 'finishReason' in candidate and candidate['finishReason'] == 'SAFETY':
+                return "⚠️ הרעיון נחסם על ידי מנגנון הבטיחות של ג'מיני. נסה לנסח אותו במילים אחרות."
+                
+        return "ג'מיני החזיר תשובה ריקה. נסה שוב."
+
     except Exception as e:
-        print(f"Technical Error: {e}")
-        return "שגיאה טכנית בחיבור. בדוק את הלוגים."
+        print(f"Code Error: {e}")
+        return f"שגיאה טכנית בחיבור לשרתי AI: {e}"
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    # מוודא שההודעה נשלחה בקבוצה שהגדרנו
+    # בודק אם אנחנו בקבוצה הנכונה
     if str(message.chat.id) == str(GROUP_ID):
-        if message.text and len(message.text) > 10:
+        # מפעיל רק אם זה רעיון אמיתי (מעל 15 תווים)
+        if message.text and len(message.text) > 15:
             bot.send_chat_action(message.chat.id, 'typing')
             feedback = get_gemini_feedback(message.text)
             bot.reply_to(message, feedback)
 
 if __name__ == "__main__":
-    # מפעיל את השרת של Render ברקע
     Thread(target=run_flask).start()
     
-    print("🚀 Waiting 8 seconds to clear old connections (Fix for 409 Conflict)...")
-    time.sleep(8) # השהייה קריטית לפתרון שגיאת 409
+    print("🚀 Waiting 10s for old Render instances to clear (Anti-Conflict)...")
+    time.sleep(10)
     
-    print("🚀 CTO Bot is starting to listen!")
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    print("🚀 CTO Bot is online with Gemini 2.0 Flash!")
+    bot.infinity_polling(timeout=10, long_polling_timeout=5, skip_pending=True)
