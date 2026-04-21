@@ -26,7 +26,7 @@ def get_gemini_feedback(text):
         return "שגיאה: חסר מפתח API של ג'מיני."
 
     # שדרוג למודל 2.0 החדש
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
     
     prompt = f"""
 You are an elite Startup Architect and CTO Advisor operating inside a developer group chat.
