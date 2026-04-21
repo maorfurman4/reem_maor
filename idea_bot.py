@@ -15,7 +15,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "CTO Bot is online and stable with Gemini 1.5!"
+    return "CTO Bot is online and stable!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -25,8 +25,8 @@ def get_gemini_feedback(text):
     if not GEMINI_KEY:
         return "שגיאה: חסר מפתח API של ג'מיני ב-Render."
 
-    # שימוש במודל 1.5 פלאש היציב והמהיר
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    # התיקון הקריטי כאן: שימוש ב-v1beta במקום v1 כדי למנוע את שגיאת 404
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
     
     prompt = f"""
 You are an elite Startup Architect and CTO Advisor operating inside a developer group chat.
@@ -81,7 +81,7 @@ CRITICAL RULES:
         
         if res.status_code != 200:
             print(f"Gemini API Error: {res.status_code} - {res.text}")
-            return f"שגיאה מג'מיני (קוד {res.status_code}). נסה שוב."
+            return f"שגיאה מג'מיני (קוד {res.status_code}). אם זה 404, תעדכן אותי."
 
         data = res.json()
         if 'candidates' in data and len(data['candidates']) > 0:
@@ -95,9 +95,7 @@ CRITICAL RULES:
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    # מוודא שאנחנו מגיבים רק בתוך הקבוצה הספציפית
     if str(message.chat.id) == str(GROUP_ID):
-        # מגיב רק להודעות ארוכות מ-15 תווים כדי לסנן הודעות רגילות כמו "היי"
         if message.text and len(message.text) > 15:
             bot.send_chat_action(message.chat.id, 'typing')
             feedback = get_gemini_feedback(message.text)
@@ -107,7 +105,6 @@ if __name__ == "__main__":
     Thread(target=run_flask).start()
     
     print("🚀 CTO Bot is starting...")
-    # מנגנון האלמוות נגד הבוטים הכפולים (שגיאת 409 מטלגרם)
     while True:
         try:
             bot.polling(non_stop=True, timeout=15, skip_pending=True)
