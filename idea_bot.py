@@ -5,7 +5,7 @@ import requests
 from flask import Flask
 from threading import Thread
 
-# טעינת הסודות + ניקוי אוטומטי של רווחים נסתרים מההעתקה
+# טעינת הסודות + ניקוי אוטומטי של רווחים נסתרים
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY_1", "").strip()
 GROUP_ID = os.environ.get("GROUP_ID", "").strip()
@@ -25,10 +25,9 @@ def get_gemini_feedback(text):
     if not GEMINI_KEY:
         return "שגיאה: חסר מפתח API של ג'מיני."
 
-    # שדרוג למודל החדש והחזק ביותר הזמין כרגע
+    # שדרוג למודל 2.0 החדש
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}"
     
-    # הפרומפט המקצועי שלך בדיוק כפי שביקשת
     prompt = f"""
 You are an elite Startup Architect and CTO Advisor operating inside a developer group chat.
 Your task is to analyze raw startup ideas presented by the users and provide a structured, highly analytical, and realistic breakdown.
@@ -81,22 +80,18 @@ CRITICAL RULES:
     try:
         res = requests.post(url, json=payload, headers=headers, timeout=30)
         
-        # טיפול בשגיאות מהשרת של גוגל
         if res.status_code != 200:
             print(f"Gemini API Error: {res.status_code} - {res.text}")
-            if res.status_code == 404:
-                 return "שגיאה 404: המודל הזה לא נתמך במפתח שלך. דבר עם המפתח שיחזיר לגרסת 1.5."
             return f"שגיאת API מג'מיני (קוד {res.status_code})."
 
         data = res.json()
         
-        # חילוץ התשובה וווידוא שהיא קיימת
         if 'candidates' in data and len(data['candidates']) > 0:
             candidate = data['candidates'][0]
             if 'content' in candidate and 'parts' in candidate['content']:
                 return candidate['content']['parts'][0]['text']
             elif 'finishReason' in candidate and candidate['finishReason'] == 'SAFETY':
-                return "⚠️ הרעיון נחסם על ידי מנגנון הבטיחות של ג'מיני. נסה לנסח אותו במילים אחרות."
+                return "⚠️ הרעיון נחסם על ידי מנגנון הבטיחות של ג'מיני."
                 
         return "ג'מיני החזיר תשובה ריקה. נסה שוב."
 
@@ -106,9 +101,7 @@ CRITICAL RULES:
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    # בודק אם אנחנו בקבוצה הנכונה
     if str(message.chat.id) == str(GROUP_ID):
-        # מפעיל רק אם זה רעיון אמיתי (מעל 15 תווים)
         if message.text and len(message.text) > 15:
             bot.send_chat_action(message.chat.id, 'typing')
             feedback = get_gemini_feedback(message.text)
@@ -117,8 +110,13 @@ def handle_message(message):
 if __name__ == "__main__":
     Thread(target=run_flask).start()
     
-    print("🚀 Waiting 10s for old Render instances to clear (Anti-Conflict)...")
-    time.sleep(10)
+    print("🚀 CTO Bot is starting with Gemini 2.0 Flash!")
     
-    print("🚀 CTO Bot is online with Gemini 2.0 Flash!")
-    bot.infinity_polling(timeout=10, long_polling_timeout=5, skip_pending=True)
+    # מנגנון האלמוות - מונע מהבוט לקרוס כשיש התנגשות עם טלגרם
+    while True:
+        try:
+            print("🔄 מנסה להתחבר לטלגרם...")
+            bot.polling(non_stop=True, timeout=10, long_polling_timeout=5)
+        except Exception as e:
+            print(f"⚠️ שגיאת חיבור לטלגרם (לרוב בגלל בוט כפול 409). ממתין 15 שניות ומנסה שוב... פרטים: {e}")
+            time.sleep(15)
