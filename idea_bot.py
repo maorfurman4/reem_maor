@@ -74,8 +74,9 @@ CRITICAL RULES:
     try:
         res = requests.post(url, json=payload, timeout=20) # הגדלתי טיים-אאוט כי התשובה תהיה ארוכה
         return res.json()['candidates'][0]['content']['parts'][0]['text']
-    except Exception as e:
-        return "שגיאה בחיבור למוח של ה-CTO... נסו שוב."
+ except Exception as e:
+    print(f"Detailed Error: {e}") # זה ידפיס לנו את הבעיה ב-Logs
+    return f"שגיאה טכנית: {e}"
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
