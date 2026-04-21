@@ -1,10 +1,11 @@
 import os
+import time
 import telebot
 import requests
 from flask import Flask
 from threading import Thread
 
-# טעינת הסודות
+# טעינת הסודות מ-Render
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY_1")
 GROUP_ID = os.environ.get("GROUP_ID")
@@ -14,7 +15,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "CTO Bot is alive and listening!"
+    return "CTO Bot is active and running smoothly!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -38,27 +39,33 @@ CRITICAL RULES:
     """
     
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    headers = {'Content-Type': 'application/json'}
+    
     try:
-        res = requests.post(url, json=payload, timeout=25)
-        res.raise_for_status() # בודק אם ה-API החזיר שגיאה
+        res = requests.post(url, json=payload, headers=headers, timeout=30)
+        if res.status_code != 200:
+            print(f"Gemini API Error: {res.status_code} - {res.text}")
+            return "משהו השתבש בחיבור למוח של ה-CTO... נסו שוב בעוד רגע."
         return res.json()['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        # כאן התיקון - מדפיס את השגיאה ללוגים של Render
-        print(f"--- GEMINI API ERROR ---")
-        print(f"Error details: {e}")
-        if 'res' in locals():
-            print(f"Response body: {res.text}")
-        return f"שגיאה טכנית בחיבור לג'מיני: {e}"
+        print(f"Technical Error: {e}")
+        return "שגיאה טכנית בחיבור. בדוק את הלוגים."
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
+    # מוודא שההודעה נשלחה בקבוצה שהגדרנו
     if str(message.chat.id) == str(GROUP_ID):
-        if message.text and len(message.text) > 15:
+        if message.text and len(message.text) > 10:
             bot.send_chat_action(message.chat.id, 'typing')
             feedback = get_gemini_feedback(message.text)
             bot.reply_to(message, feedback)
 
 if __name__ == "__main__":
+    # מפעיל את השרת של Render ברקע
     Thread(target=run_flask).start()
-    print("🚀 CTO Bot is online and fixed!")
-    bot.infinity_polling()
+    
+    print("🚀 Waiting 8 seconds to clear old connections (Fix for 409 Conflict)...")
+    time.sleep(8) # השהייה קריטית לפתרון שגיאת 409
+    
+    print("🚀 CTO Bot is starting to listen!")
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
