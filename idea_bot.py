@@ -2,10 +2,11 @@ import os
 import time
 import telebot
 import requests
+import json
 from flask import Flask
 from threading import Thread
 
-# טעינת סודות וניקוי רווחים נסתרים
+# ─── Config ────────────────────────────────────────────────────────────────
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY_1", "").strip()
 GROUP_ID = os.environ.get("GROUP_ID", "").strip()
@@ -15,19 +16,15 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "CTO Bot is online and stable!"
+    return "CTO Bot is online and synced with Gemini 2.5!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
+# ─── AI Engine (Based on your working code) ────────────────────────────────
 def get_gemini_feedback(text):
-    if not GEMINI_KEY:
-        return "שגיאה: חסר מפתח API של ג'מיני ב-Render."
-
-    # התיקון הקריטי כאן: שימוש ב-v1beta במקום v1 כדי למנוע את שגיאת 404
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    
+    # הפרומפט המקצועי שלך
     prompt = f"""
 You are an elite Startup Architect and CTO Advisor operating inside a developer group chat.
 Your task is to analyze raw startup ideas presented by the users and provide a structured, highly analytical, and realistic breakdown.
@@ -56,7 +53,7 @@ CRITICAL RULES:
 5. 🛠️ **סביבת פיתוח מומלצת (Tech Stack):**
    - Frontend, Backend, Database, AI.
 
-6. 👥 **צוות נדרש (Team Size):**
+6. 👥 **צוות ננדרש (Team Size):**
    - תפקידים הכרחיים ל-MVP.
 
 7. ⏳ **משך זמן פיתוח (Time to MVP):**
@@ -72,27 +69,31 @@ CRITICAL RULES:
 הרעיון לניתוח:
 "{text}"
     """
+
+    # ה-URL המדויק מהקוד שעבד לך (כולל v1beta ו-2.5 flash)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY.strip()}"
     
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2, # קצת יותר יצירתי לסטארטאפים
+            "topP": 0.8,
+            "topK": 40
+        }
+    }
     
     try:
-        res = requests.post(url, json=payload, headers=headers, timeout=30)
-        
+        res = requests.post(url, json=payload, timeout=30)
         if res.status_code != 200:
             print(f"Gemini API Error: {res.status_code} - {res.text}")
-            return f"שגיאה מג'מיני (קוד {res.status_code}). אם זה 404, תעדכן אותי."
+            return f"שגיאה טכנית מול ג'מיני (קוד {res.status_code}). נסה שוב בעוד רגע."
 
-        data = res.json()
-        if 'candidates' in data and len(data['candidates']) > 0:
-            return data['candidates'][0]['content']['parts'][0]['text']
-        
-        return "ג'מיני לא החזיר תשובה. נסה לנסח אחרת."
-
+        result_data = res.json()
+        return result_data['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        print(f"Technical Error: {e}")
-        return f"שגיאה טכנית בחיבור: {str(e)}"
+        return f"שגיאה בחיבור למוח: {str(e)}"
 
+# ─── Telegram Handlers ──────────────────────────────────────────────────────
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     if str(message.chat.id) == str(GROUP_ID):
@@ -101,13 +102,15 @@ def handle_message(message):
             feedback = get_gemini_feedback(message.text)
             bot.reply_to(message, feedback)
 
+# ─── Main Execution ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
     Thread(target=run_flask).start()
     
-    print("🚀 CTO Bot is starting...")
+    print("🚀 CTO Bot is starting (Gemini 2.5 Mode)...")
+    
     while True:
         try:
             bot.polling(non_stop=True, timeout=15, skip_pending=True)
         except Exception as e:
-            print(f"Telegram connection error: {e}. Retrying in 10s...")
+            print(f"Telegram Conflict/Error: {e}. Sleeping 10s...")
             time.sleep(10)
